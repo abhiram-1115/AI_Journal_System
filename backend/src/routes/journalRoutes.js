@@ -10,10 +10,10 @@ const router = express.Router();
 
 router.post("/", createJournal);
 
-router.get("/:userId", getJournals);
-
 router.post("/analyze", analyzeJournal);
 
 router.get("/insights/:userId", getInsights);
+
+router.get("/:userId", getJournals);
 
 export default router;

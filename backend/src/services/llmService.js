@@ -24,9 +24,9 @@ Analyze the following journal entry.
 Return ONLY valid JSON:
 
 {
- "emotion": "",
- "keywords": [],
- "summary": ""
+  "emotion": "<one primary emotion>",
+  "keywords": ["k1","k2","k3"],
+  "summary": "<one-sentence summary>"
 }
 
 Text: ${text}
@@ -36,7 +36,18 @@ Text: ${text}
 
     const response = await result.response;
 
-    return response.text();
+    const raw = response.text().trim();
+
+    // Strip markdown code fences if present
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+    const parsed = JSON.parse(cleaned);
+
+    return {
+      emotion: parsed.emotion?.trim() || null,
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+      summary: parsed.summary?.trim() || null,
+    };
 
   } catch (error) {
 

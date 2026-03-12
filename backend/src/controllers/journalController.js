@@ -5,23 +5,31 @@ import { generateInsights } from "../utils/insights.js";
 
 // POST /api/journal
 export const createJournal = async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ error: "Request body is required and must be valid JSON." });
+    }
 
-try {
+    const { text } = req.body;
 
-if (!req.body || typeof req.body !== "object") {
-return res.status(400).json({ error: "Request body is required and must be valid JSON." });
-}
+    if (typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Field 'text' is required and must be a non-empty string." });
+    }
 
-const journal = await Journal.create(req.body);
+    // Auto-analyze emotion, keywords, and summary before saving
+    const analysis = await analyzeEmotion(text);
 
-res.status(201).json(journal);
+    const journal = await Journal.create({
+      ...req.body,
+      emotion: analysis.emotion,
+      keywords: analysis.keywords,
+      summary: analysis.summary,
+    });
 
-} catch (error) {
-
-res.status(500).json({ error: error.message });
-
-}
-
+    res.status(201).json(journal);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 
@@ -49,46 +57,67 @@ res.status(500).json({ error: error.message });
 
 // POST /api/journal/analyze
 export const analyzeJournal = async (req, res) => {
+  try {
+    const { text } = req.body || {};
 
-try {
+    if (typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ error: "Field 'text' is required and must be a non-empty string." });
+    }
 
-const { text } = req.body || {};
-
-if (typeof text !== "string" || !text.trim()) {
-return res.status(400).json({ error: "Field 'text' is required and must be a non-empty string." });
-}
-
-const result = await analyzeEmotion(text);
-
-res.json(result);
-
-} catch (error) {
-
-res.status(500).json({ error: error.message });
-
-}
-
+    const result = await analyzeEmotion(text);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 
 
 // GET /api/journal/insights/:userId
 export const getInsights = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
-try {
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
 
-const entries = await Journal.find({
-userId: req.params.userId
-});
+    const entries = await Journal.find({ userId })
+      .sort({ createdAt: -1 })
+      .lean();
 
-const insights = generateInsights(entries);
+    const totalEntries = entries.length;
+    const emotionCount = {};
+    const ambienceCount = {};
+    const recentKeywords = [];
 
-res.json(insights);
+    for (const e of entries) {
+      if (e.emotion) {
+        emotionCount[e.emotion] = (emotionCount[e.emotion] || 0) + 1;
+      }
+      if (e.ambience) {
+        ambienceCount[e.ambience] = (ambienceCount[e.ambience] || 0) + 1;
+      }
 
-} catch (error) {
+      if (Array.isArray(e.keywords)) {
+        for (const k of e.keywords.slice(0, 3)) {
+          recentKeywords.push(k);
+        }
+      }
+    }
 
-res.status(500).json({ error: error.message });
+    const topEmotion =
+      Object.entries(emotionCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    const mostUsedAmbience =
+      Object.entries(ambienceCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-}
-
+    res.json({
+      totalEntries,
+      topEmotion,
+      mostUsedAmbience,
+      recentKeywords: recentKeywords.slice(0, 10),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
