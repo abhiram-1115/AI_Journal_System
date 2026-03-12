@@ -1,4 +1,4 @@
-import Journal from "../models/Journal.js";
+import Journal from "../models/journal.js";
 import { analyzeEmotion } from "../services/llmService.js";
 import { generateInsights } from "../utils/insights.js";
 
